@@ -160,6 +160,10 @@
   function playClick() {
     tone(587.33, 0.08, "triangle", 0.09);
   }
+  function playMiss() {
+    tone(196.00, 0.16, "square", 0.13);
+    tone(164.81, 0.2, "square", 0.1, 0.06);
+  }
   function playLevelUp() {
     tone(392.00, 0.13, "triangle", 0.15);
     tone(523.25, 0.13, "triangle", 0.15, 0.08);
@@ -457,6 +461,13 @@
     if (state === "start") beginPlaying();
   }
 
+  function returnToMenu() {
+    state = "start";
+    overScreen.classList.add("hidden");
+    startScreen.classList.remove("hidden");
+    canvas.style.cursor = "default";
+  }
+
   function triggerGrandCelebration() {
     spawnFloatText(W / 2, H * 0.16, "LEVEL " + currentLevel, "#ffffff", "huge");
     spawnFloatText(W / 2, H * 0.27, "MILESTONE REACHED", COLORS[ball.color].fill, "big");
@@ -517,6 +528,17 @@
     }
   }
 
+  function onMissPlatform(g) {
+    score = Math.max(0, score - 1);
+    scoreEl.textContent = score;
+    bumpScorePop();
+    shake = Math.max(shake, 0.4);
+    spawnParticles(ball.x, screenYOf(g.y), "#ff5566", 8, 90);
+    spawnFloatText(ball.x, screenYOf(g.y), "MISSED  -1", "#ff5566", "normal");
+    playMiss();
+    vibrate(20);
+  }
+
   function die() {
     if (state !== "playing") return;
     state = "dead";
@@ -554,11 +576,14 @@
       beginPlaying(e.currentTarget.getAttribute("data-diff"));
     });
   }
-  retryBtn.addEventListener("click", function () { beginPlaying(); });
+  retryBtn.addEventListener("click", returnToMenu);
 
   function pointerToX(clientX) {
     var rect = canvas.getBoundingClientRect();
-    return clientX - rect.left;
+    var frac = (clientX - rect.left) / rect.width;
+    if (frac < 0) frac = 0;
+    if (frac > 1) frac = 1;
+    return laneLeft + frac * laneW; // full window width maps to the full lane, edge to edge
   }
 
   canvas.addEventListener("pointerdown", function (e) {
@@ -661,12 +686,19 @@
       if (g.pulse > 0) g.pulse -= dt * 3;
 
       if (!g.passed && prevY > g.y && ball.y <= g.y) {
-        var col = blockColorAt(g, ball.x);
-        if (col === ball.color) {
-          onPassGate(g);
+        var geo = gateGeometry(g);
+        var onPlatform = ball.x >= geo.left && ball.x <= geo.left + g.gateW;
+        if (!onPlatform) {
+          g.passed = true;
+          onMissPlatform(g);
         } else {
-          die();
-          break;
+          var col = blockColorAt(g, ball.x);
+          if (col === ball.color) {
+            onPassGate(g);
+          } else {
+            die();
+            break;
+          }
         }
       }
     }

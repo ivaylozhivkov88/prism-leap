@@ -35,7 +35,16 @@
     { fill: "#ffd12d", glow: "rgba(255,209,45,0.5)", ambient: "rgba(255,209,45,0.10)" },
     { fill: "#4dff8f", glow: "rgba(77,255,143,0.5)", ambient: "rgba(77,255,143,0.10)" }
   ];
-  var SEGMENTS = COLORS.length;
+  var SEGMENTS = COLORS.length; // overridden per-run by the chosen difficulty
+  var activePalette = [0, 1, 2, 3]; // color indices in play this run
+
+  var DIFFICULTY_PRESETS = {
+    easy: { label: "EASY", segments: 2, paletteSize: 2, moving: false, oscMul: 0 },
+    normal: { label: "NORMAL", segments: 4, paletteSize: 4, moving: false, oscMul: 0 },
+    hard: { label: "HARD", segments: 4, paletteSize: 4, moving: true, oscMul: 1 },
+    impossible: { label: "IMPOSSIBLE", segments: 4, paletteSize: 4, moving: true, oscMul: 1.8 }
+  };
+  var difficulty = "normal";
 
   // ---------- levels: exactly GATES_PER_LEVEL gates each, zone crossfades on level-up ----------
   var GATES_PER_LEVEL = 10;
@@ -86,7 +95,7 @@
   var bgLayer = document.getElementById("bg-layer");
   var startScreen = document.getElementById("start-screen");
   var overScreen = document.getElementById("gameover-screen");
-  var startBtn = document.getElementById("start-btn");
+  var diffButtons = document.querySelectorAll(".diff-btn");
   var retryBtn = document.getElementById("retry-btn");
   var finalScoreEl = document.getElementById("final-score");
   var finalLevelEl = document.getElementById("final-level");
@@ -155,6 +164,22 @@
     tone(392.00, 0.13, "triangle", 0.15);
     tone(523.25, 0.13, "triangle", 0.15, 0.08);
     tone(659.25, 0.3, "triangle", 0.17, 0.16);
+  }
+  function playFanfare() {
+    var run = [SCALE[0], SCALE[2], SCALE[4], SCALE[5], SCALE[6], SCALE[7]];
+    for (var i = 0; i < run.length; i++) {
+      tone(run[i], 0.28, "triangle", 0.17, i * 0.09);
+      tone(run[i] * 2, 0.22, "sine", 0.07, i * 0.09 + 0.02);
+    }
+    var chordAt = run.length * 0.09 + 0.06;
+    tone(SCALE[0] * 2, 0.7, "triangle", 0.15, chordAt);
+    tone(SCALE[4], 0.7, "triangle", 0.13, chordAt);
+    tone(SCALE[7], 0.7, "triangle", 0.15, chordAt);
+  }
+  function playFirework() {
+    var f = 700 + Math.random() * 500;
+    tone(f, 0.16, "triangle", 0.11);
+    tone(f * 1.5, 0.14, "sine", 0.07, 0.03);
   }
 
   // ---------- background music (looping procedural sequencer, speeds up with level) ----------
@@ -278,11 +303,20 @@
   }
 
   function resetGame() {
+    var preset = DIFFICULTY_PRESETS[difficulty];
+    SEGMENTS = preset.segments;
+    var pool = [0, 1, 2, 3];
+    for (var i = pool.length - 1; i > 0; i--) {
+      var j = (Math.random() * (i + 1)) | 0;
+      var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+    }
+    activePalette = pool.slice(0, preset.paletteSize);
+
     ball = {
       x: W / 2,
       y: 0,
       targetX: W / 2,
-      color: (Math.random() * COLORS.length) | 0,
+      color: activePalette[(Math.random() * activePalette.length) | 0],
       trail: [],
       spin: 0,
       spawnT: 0
@@ -307,32 +341,53 @@
     return Math.min(1, spawnedCount / 35);
   }
 
+  function randomPaletteColor() {
+    return activePalette[(Math.random() * activePalette.length) | 0];
+  }
+
   function spawnGate() {
     var t = difficultyT();
+    var preset = DIFFICULTY_PRESETS[difficulty];
 
     var blocks = [];
-    for (var s = 0; s < SEGMENTS; s++) blocks.push((Math.random() * COLORS.length) | 0);
+    for (var s = 0; s < SEGMENTS; s++) blocks.push(randomPaletteColor());
     var matchSlot = (Math.random() * SEGMENTS) | 0;
     for (var k = 0; k < SEGMENTS; k++) {
       if (k !== matchSlot && blocks[k] === ball.color) {
-        blocks[k] = (blocks[k] + 1 + ((Math.random() * (COLORS.length - 1)) | 0)) % COLORS.length;
+        var guard = 0;
+        do { blocks[k] = randomPaletteColor(); guard++; } while (blocks[k] === ball.color && guard < 10);
       }
     }
     blocks[matchSlot] = ball.color; // exactly one matching segment per gate, always, always equal width
+
+    var moving = preset.moving;
+    var gateW = moving ? laneW * 0.68 : laneW;
 
     gates.push({
       y: spawnCursorY,
       blocks: blocks,
       passed: false,
-      pulse: 0
+      pulse: 0,
+      moving: moving,
+      gateW: gateW,
+      phase: Math.random() * Math.PI * 2,
+      oscSpeed: (0.6 + t * 0.9) * preset.oscMul
     });
     spawnedCount++;
     spawnCursorY -= (GATE_GAP_BASE - t * GATE_GAP_MIN_CUT);
   }
 
+  function gateGeometry(gate) {
+    var w = gate.gateW / SEGMENTS;
+    if (!gate.moving) return { left: laneLeft, w: w };
+    var amp = (laneW - gate.gateW) / 2 * 0.92;
+    var off = Math.sin(elapsed * gate.oscSpeed + gate.phase) * amp;
+    return { left: laneLeft + (laneW - gate.gateW) / 2 + off, w: w };
+  }
+
   function blockColorAt(gate, x) {
-    var w = laneW / SEGMENTS;
-    var idx = Math.floor((x - laneLeft) / w);
+    var geo = gateGeometry(gate);
+    var idx = Math.floor((x - geo.left) / geo.w);
     if (idx < 0) idx = 0;
     if (idx >= SEGMENTS) idx = SEGMENTS - 1;
     return gate.blocks[idx];
@@ -358,8 +413,9 @@
     shockwaves.push({ x: x, y: y, color: color, maxR: maxR, life: life, t: 0 });
   }
 
-  function spawnFloatText(x, y, text, color, big) {
-    floatTexts.push({ x: x, y: y, text: text, color: color, t: 0, life: 0.85, big: !!big });
+  function spawnFloatText(x, y, text, color, size) {
+    var life = size === "huge" ? 1.3 : 0.85;
+    floatTexts.push({ x: x, y: y, text: text, color: color, t: 0, life: life, size: size || "normal" });
   }
 
   function bumpScorePop() {
@@ -374,7 +430,8 @@
     levelBadgeEl.classList.add("pop");
   }
 
-  function beginPlaying() {
+  function beginPlaying(chosenDifficulty) {
+    if (chosenDifficulty) difficulty = chosenDifficulty;
     ensureAudio();
     startScreen.classList.add("hidden");
     overScreen.classList.add("hidden");
@@ -400,6 +457,28 @@
     if (state === "start") beginPlaying();
   }
 
+  function triggerGrandCelebration() {
+    spawnFloatText(W / 2, H * 0.16, "LEVEL " + currentLevel, "#ffffff", "huge");
+    spawnFloatText(W / 2, H * 0.27, "MILESTONE REACHED", COLORS[ball.color].fill, "big");
+    punch = 1;
+    shake = Math.max(shake, 1.3);
+    hitstop = Math.max(hitstop, 0.1);
+    playFanfare();
+    var bursts = 7;
+    for (var i = 0; i < bursts; i++) {
+      (function (idx) {
+        setTimeout(function () {
+          var fx = W * (0.14 + Math.random() * 0.72);
+          var fy = H * (0.12 + Math.random() * 0.4);
+          var col = COLORS[(Math.random() * COLORS.length) | 0].fill;
+          spawnParticles(fx, fy, col, 26, 250);
+          spawnShockwave(fx, fy, col, 95, 0.55);
+          playFirework();
+        }, idx * 160);
+      })(i);
+    }
+  }
+
   function triggerLevelUp() {
     zonePrevIdx = zoneIdx;
     zoneIdx = (zoneIdx + 1) % ZONES.length;
@@ -407,9 +486,14 @@
     currentLevel++;
     levelNumEl.textContent = currentLevel;
     bumpLevelPop();
-    spawnFloatText(W / 2, H * 0.2, "LEVEL " + currentLevel, "#ffffff", true);
     punch = Math.min(1, punch + 0.5);
-    playLevelUp();
+
+    if (currentLevel % 10 === 0) {
+      triggerGrandCelebration();
+    } else {
+      spawnFloatText(W / 2, H * 0.2, "LEVEL " + currentLevel, "#ffffff", "big");
+      playLevelUp();
+    }
   }
 
   function onPassGate(g) {
@@ -421,11 +505,11 @@
     g.pulse = 1;
     punch = Math.min(1, punch + 0.5);
     spawnParticles(ball.x, screenYOf(g.y), COLORS[ball.color].fill, 12, 150);
-    spawnFloatText(ball.x, screenYOf(g.y), "+1", COLORS[ball.color].fill, false);
+    spawnFloatText(ball.x, screenYOf(g.y), "+1", COLORS[ball.color].fill, "normal");
     playPass(score);
     vibrate(12);
     if (score > 0 && score % 5 === 0) {
-      spawnFloatText(W / 2, H * 0.28, score + " STREAK", "#ffffff", true);
+      spawnFloatText(W / 2, H * 0.28, score + " STREAK", "#ffffff", "big");
       hitstop = Math.max(hitstop, 0.035);
     }
     if (gatesPassed % GATES_PER_LEVEL === 0) {
@@ -465,8 +549,12 @@
     }, 1100);
   }
 
-  startBtn.addEventListener("click", beginPlaying);
-  retryBtn.addEventListener("click", beginPlaying);
+  for (var dbi = 0; dbi < diffButtons.length; dbi++) {
+    diffButtons[dbi].addEventListener("click", function (e) {
+      beginPlaying(e.currentTarget.getAttribute("data-diff"));
+    });
+  }
+  retryBtn.addEventListener("click", function () { beginPlaying(); });
 
   function pointerToX(clientX) {
     var rect = canvas.getBoundingClientRect();
@@ -663,7 +751,8 @@
   function drawGate(gate) {
     var sy = screenYOf(gate.y);
     if (sy < -40 || sy > H + 40) return;
-    var w = laneW / SEGMENTS;
+    var geo = gateGeometry(gate);
+    var gLeft = geo.left, w = geo.w, gW = gate.gateW;
     var isNext = !gate.passed && nextGateY() === gate.y;
     var highlight = isNext ? (0.5 + 0.5 * Math.sin(elapsed * 5)) : 0;
     var scaleY = 1 + gate.pulse * 0.35;
@@ -672,7 +761,7 @@
     if (ball && isNext) {
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
-      roundRectPath(laneLeft - 12, sy - h / 2 - 12, laneW + 24, h + 24, 20);
+      roundRectPath(gLeft - 12, sy - h / 2 - 12, gW + 24, h + 24, 20);
       ctx.fillStyle = COLORS[ball.color].ambient;
       ctx.fill();
       ctx.restore();
@@ -680,7 +769,7 @@
 
     if (isNext) {
       ctx.save();
-      roundRectPath(laneLeft - 4, sy - h / 2 - 4, laneW + 8, h + 8, 14);
+      roundRectPath(gLeft - 4, sy - h / 2 - 4, gW + 8, h + 8, 14);
       ctx.strokeStyle = "rgba(255,255,255," + (0.15 + highlight * 0.35) + ")";
       ctx.lineWidth = 3;
       ctx.stroke();
@@ -688,11 +777,11 @@
     }
 
     ctx.save();
-    roundRectPath(laneLeft, sy - h / 2, laneW, h, 12);
+    roundRectPath(gLeft, sy - h / 2, gW, h, 12);
     ctx.clip();
 
     for (var s = 0; s < SEGMENTS; s++) {
-      var bx = laneLeft + s * w;
+      var bx = gLeft + s * w;
       ctx.fillStyle = COLORS[gate.blocks[s]].fill;
       ctx.globalAlpha = gate.passed ? 0.22 : 0.95;
       ctx.fillRect(bx, sy - h / 2, w + 0.5, h);
@@ -700,7 +789,7 @@
     ctx.strokeStyle = "rgba(0,0,0,0.28)";
     ctx.lineWidth = 1.5;
     for (var d = 1; d < SEGMENTS; d++) {
-      var dx = laneLeft + d * w;
+      var dx = gLeft + d * w;
       ctx.beginPath();
       ctx.moveTo(dx, sy - h / 2);
       ctx.lineTo(dx, sy + h / 2);
@@ -711,12 +800,12 @@
     sheen.addColorStop(0, "rgba(255,255,255,0.35)");
     sheen.addColorStop(0.4, "rgba(255,255,255,0)");
     ctx.fillStyle = sheen;
-    ctx.fillRect(laneLeft, sy - h / 2, laneW, h);
+    ctx.fillRect(gLeft, sy - h / 2, gW, h);
     ctx.globalAlpha = 1;
     ctx.restore();
 
     ctx.save();
-    roundRectPath(laneLeft, sy - h / 2, laneW, h, 12);
+    roundRectPath(gLeft, sy - h / 2, gW, h, 12);
     ctx.strokeStyle = "rgba(255,255,255,0.3)";
     ctx.lineWidth = 2;
     ctx.stroke();
@@ -821,10 +910,11 @@
       var ft = floatTexts[i];
       var a = Math.max(0, 1 - ft.t / ft.life);
       var ty = ft.y - ft.t * 46;
-      ctx.font = (ft.big ? "800 26px" : "800 18px") + " 'Segoe UI', system-ui, sans-serif";
+      var px = ft.size === "huge" ? 40 : (ft.size === "big" ? 26 : 18);
+      ctx.font = "800 " + px + "px 'Segoe UI', system-ui, sans-serif";
       ctx.globalAlpha = a;
       ctx.lineJoin = "round";
-      ctx.lineWidth = ft.big ? 4 : 3;
+      ctx.lineWidth = ft.size === "huge" ? 5 : (ft.size === "big" ? 4 : 3);
       ctx.strokeStyle = "rgba(255,255,255,0.9)";
       ctx.strokeText(ft.text, ft.x, ty);
       ctx.fillStyle = ft.color;

@@ -21,7 +21,13 @@
   <div class="panel">
     <h1 class="title">PRISM<span>LEAP</span></h1>
     <p class="subtitle">Pass through the gates only in your own color</p>
-    <button id="start-btn" class="btn">PLAY</button>
+    <div class="diff-label">Choose difficulty</div>
+    <div class="diff-grid">
+      <button class="diff-btn diff-easy" data-diff="easy">EASY<span>2 colors, wide lanes</span></button>
+      <button class="diff-btn diff-normal" data-diff="normal">NORMAL<span>4 colors</span></button>
+      <button class="diff-btn diff-hard" data-diff="hard">HARD<span>gates drift sideways</span></button>
+      <button class="diff-btn diff-impossible" data-diff="impossible">IMPOSSIBLE<span>drift keeps speeding up</span></button>
+    </div>
     <div class="hint">Move the mouse / your finger, or ← →</div>
     <div class="best-row">Best: <span id="best-start">0</span></div>
   </div>

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Prism Leap</title>
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="bg-layer" class="bg-menu"></div>
+<canvas id="game"></canvas>
+<div id="vignette"></div>
+
+<div id="hud">
+  <div id="level-badge">LEVEL <span id="level-num">1</span></div>
+  <div id="score">0</div>
+</div>
+
+<div id="start-screen" class="overlay">
+  <div class="panel">
+    <h1 class="title">PRISM<span>LEAP</span></h1>
+    <p class="subtitle">Pass through the gates only in your own color</p>
+    <button id="start-btn" class="btn">PLAY</button>
+    <div class="hint">Move the mouse / your finger, or ← →</div>
+    <div class="best-row">Best: <span id="best-start">0</span></div>
+  </div>
+</div>
+
+<div id="gameover-screen" class="overlay hidden">
+  <div class="panel">
+    <h1 class="title small">GAME OVER</h1>
+    <div class="score-row">
+      <div>
+        <div class="score-label">Level</div>
+        <div id="final-level" class="score-value">1</div>
+      </div>
+      <div>
+        <div class="score-label">Score</div>
+        <div id="final-score" class="score-value">0</div>
+      </div>
+      <div>
+        <div class="score-label">Best</div>
+        <div id="best-score" class="score-value">0</div>
+      </div>
+    </div>
+    <button id="retry-btn" class="btn">PLAY AGAIN</button>
+    <div class="hint">Move the mouse / your finger, or ← →</div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>

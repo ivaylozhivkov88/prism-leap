@@ -780,7 +780,7 @@
 
   // ---------- helpers ----------
   function screenYOf(worldY) {
-    return (worldY - camY) + H * BALL_SCREEN_Y_RATIO;
+    return worldY - camY; // camY already bakes in the H*BALL_SCREEN_Y_RATIO offset, don't add it twice
   }
 
   function roundRectPath(x, y, w, h, r) {

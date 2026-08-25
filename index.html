@@ -26,13 +26,17 @@
 </div>
 
 <div id="top-controls">
-  <button id="pause-btn" class="icon-btn" aria-label="Pause" title="Pause">
+  <button id="pause-btn" class="icon-btn hidden" aria-label="Pause" title="Pause">
     <svg viewBox="0 0 24 24" width="18" height="18"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>
+  </button>
+  <button id="music-btn" class="icon-btn" aria-label="Change music" title="Change music">
+    <svg viewBox="0 0 24 24" width="18" height="18"><path d="M9 18V5l11-2v13" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.6" fill="currentColor"/><circle cx="17.5" cy="16" r="2.6" fill="currentColor"/></svg>
   </button>
   <button id="mute-btn" class="icon-btn" aria-label="Mute" title="Mute">
     <svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 9v6h4l5 5V4L8 9H4z" fill="currentColor"/><path id="mute-waves" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a9 9 0 0 1 0 12" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/><line id="mute-slash" x1="15" y1="4" x2="21" y2="20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="display:none"/></svg>
   </button>
 </div>
+<div id="theme-toast"></div>
 
 <div id="start-screen" class="overlay">
   <div class="panel">

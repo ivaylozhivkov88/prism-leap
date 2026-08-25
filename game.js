@@ -299,8 +299,8 @@
   var GATE_GAP_BASE = 230;
   var GATE_GAP_MIN_CUT = 25;
   var GATE_H = 26;
-  var KEY_SPEED = 900;
-  var BALL_SCREEN_Y_RATIO = 0.38;
+  var KEY_SPEED = 1400;
+  var BALL_SCREEN_Y_RATIO = 0.6;
   var HIT_STOP_DUR = 0.08;
   var PUNCH_DECAY = 5;
   var STAR_COUNT = 70;

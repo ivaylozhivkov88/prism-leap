@@ -10,7 +10,7 @@
   var laneW = 0, laneLeft = 0, laneRight = 0;
 
   function computeLane() {
-    laneW = Math.min(420, W * 0.72);
+    laneW = Math.min(420, W - 32); // small fixed margin instead of a % cut, so narrow phones use nearly the full width
     laneLeft = W / 2 - laneW / 2;
     laneRight = W / 2 + laneW / 2;
   }
@@ -45,6 +45,7 @@
     impossible: { label: "IMPOSSIBLE", segments: 4, paletteSize: 4, moving: true, oscMul: 1.8 }
   };
   var difficulty = "normal";
+  var chosenBallColor = null; // null = random each run; otherwise a fixed COLORS index
 
   // ---------- levels: exactly GATES_PER_LEVEL gates each, zone crossfades on level-up ----------
   var GATES_PER_LEVEL = 10;
@@ -96,6 +97,7 @@
   var startScreen = document.getElementById("start-screen");
   var overScreen = document.getElementById("gameover-screen");
   var diffButtons = document.querySelectorAll(".diff-btn");
+  var colorButtons = document.querySelectorAll(".color-swatch");
   var retryBtn = document.getElementById("retry-btn");
   var menuBtn = document.getElementById("menu-btn");
   var finalScoreEl = document.getElementById("final-score");
@@ -337,12 +339,15 @@
       var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
     }
     activePalette = pool.slice(0, preset.paletteSize);
+    if (chosenBallColor !== null && activePalette.indexOf(chosenBallColor) === -1) {
+      activePalette[0] = chosenBallColor;
+    }
 
     ball = {
       x: W / 2,
       y: 0,
       targetX: W / 2,
-      color: activePalette[(Math.random() * activePalette.length) | 0],
+      color: chosenBallColor !== null ? chosenBallColor : activePalette[(Math.random() * activePalette.length) | 0],
       trail: [],
       spin: 0,
       spawnT: 0
@@ -601,6 +606,14 @@
   for (var dbi = 0; dbi < diffButtons.length; dbi++) {
     diffButtons[dbi].addEventListener("click", function (e) {
       beginPlaying(e.currentTarget.getAttribute("data-diff"));
+    });
+  }
+  for (var cbi = 0; cbi < colorButtons.length; cbi++) {
+    colorButtons[cbi].addEventListener("click", function (e) {
+      var val = e.currentTarget.getAttribute("data-color");
+      chosenBallColor = val === "random" ? null : parseInt(val, 10);
+      for (var k = 0; k < colorButtons.length; k++) colorButtons[k].classList.remove("selected");
+      e.currentTarget.classList.add("selected");
     });
   }
   retryBtn.addEventListener("click", function () { beginPlaying(); });

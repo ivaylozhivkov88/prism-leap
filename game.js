@@ -92,6 +92,7 @@
   // ---------- dom ----------
   var scoreEl = document.getElementById("score");
   var levelBadgeEl = document.getElementById("level-badge");
+  var effectRowEl = document.getElementById("effect-row");
   var levelNumEl = document.getElementById("level-num");
   var bgLayer = document.getElementById("bg-layer");
   var startScreen = document.getElementById("start-screen");
@@ -185,6 +186,15 @@
   function playMiss() {
     tone(196.00, 0.16, "square", 0.13);
     tone(164.81, 0.2, "square", 0.1, 0.06);
+  }
+  function playPowerup() {
+    tone(SCALE[3], 0.1, "sine", 0.14);
+    tone(SCALE[5], 0.1, "sine", 0.15, 0.07);
+    tone(SCALE[7], 0.22, "sine", 0.17, 0.14);
+  }
+  function playShieldHit() {
+    tone(440.00, 0.1, "triangle", 0.15);
+    tone(329.63, 0.18, "triangle", 0.12, 0.05);
   }
   function playLevelUp() {
     tone(392.00, 0.13, "triangle", 0.15);
@@ -308,6 +318,18 @@
   var shockwaves = [];
   var gatesPassed = 0;
   var zoneIdx = 0, zonePrevIdx = 0, zoneTransT = 1;
+
+  // ---------- power-ups ----------
+  var POWERUP_TYPES = {
+    shield: { color: "#ffe066", label: "SHIELD" },
+    slow: { color: "#7ec8ff", label: "SLOW" },
+    rush: { color: "#ff6a3d", label: "RUSH" },
+    magnet: { color: "#b26dff", label: "MAGNET" }
+  };
+  var POWERUP_ORDER = ["shield", "slow", "rush", "magnet"];
+  var powerups = [];
+  var shieldCharges = 0;
+  var effectTimers = { slow: 0, rush: 0, magnet: 0 };
   var stars = [];
   var bokeh = [];
   var BOKEH_COUNT = 6;
@@ -355,6 +377,9 @@
     gates = [];
     particles = [];
     floatTexts = [];
+    powerups = [];
+    shieldCharges = 0;
+    effectTimers = { slow: 0, rush: 0, magnet: 0 };
     score = 0;
     spawnedCount = 0;
     shake = 0; flash = 0; punch = 0; hitstop = 0;
@@ -365,6 +390,7 @@
     scoreEl.textContent = "0";
     camY = ball.y - H * BALL_SCREEN_Y_RATIO;
     spawnCursorY = -GATE_GAP_BASE * 1.1;
+    updateShieldBadge();
     for (var i = 0; i < 6; i++) spawnGate();
   }
 
@@ -394,8 +420,11 @@
     var moving = preset.moving;
     var gateW = moving ? laneW * 0.68 : laneW;
 
+    var gap = GATE_GAP_BASE - t * GATE_GAP_MIN_CUT;
+    var thisGateY = spawnCursorY;
+
     gates.push({
-      y: spawnCursorY,
+      y: thisGateY,
       blocks: blocks,
       passed: false,
       pulse: 0,
@@ -405,7 +434,16 @@
       oscSpeed: (0.6 + t * 0.9) * preset.oscMul
     });
     spawnedCount++;
-    spawnCursorY -= (GATE_GAP_BASE - t * GATE_GAP_MIN_CUT);
+    spawnCursorY -= gap;
+
+    // roughly 1 in 4 gaps gets a power-up, always dead-centered between the two
+    // gates it sits between so grabbing it never conflicts with either one's color
+    if (spawnedCount > 3 && Math.random() < 0.25) {
+      var type = POWERUP_ORDER[(Math.random() * POWERUP_ORDER.length) | 0];
+      var margin = laneLeft + 26;
+      var x = margin + Math.random() * (laneRight - 26 - margin);
+      powerups.push({ x: x, y: thisGateY - gap / 2, type: type, collected: false, bobT: Math.random() * Math.PI * 2 });
+    }
   }
 
   function gateGeometry(gate) {
@@ -459,6 +497,26 @@
     levelBadgeEl.classList.remove("pop");
     void levelBadgeEl.offsetWidth;
     levelBadgeEl.classList.add("pop");
+  }
+
+  function updateShieldBadge() {
+    updateEffectBadges();
+  }
+
+  function updateEffectBadges() {
+    var chips = [];
+    if (shieldCharges > 0) chips.push({ text: "SHIELD x" + shieldCharges, color: POWERUP_TYPES.shield.color });
+    if (effectTimers.slow > 0) chips.push({ text: "SLOW " + Math.ceil(effectTimers.slow) + "s", color: POWERUP_TYPES.slow.color });
+    if (effectTimers.rush > 0) chips.push({ text: "RUSH " + Math.ceil(effectTimers.rush) + "s", color: POWERUP_TYPES.rush.color });
+    if (effectTimers.magnet > 0) chips.push({ text: "MAGNET " + Math.ceil(effectTimers.magnet) + "s", color: POWERUP_TYPES.magnet.color });
+    effectRowEl.innerHTML = "";
+    for (var i = 0; i < chips.length; i++) {
+      var el = document.createElement("div");
+      el.className = "effect-chip";
+      el.style.setProperty("--sc", chips[i].color);
+      el.textContent = chips[i].text;
+      effectRowEl.appendChild(el);
+    }
   }
 
   function beginPlaying(chosenDifficulty) {
@@ -566,9 +624,47 @@
     vibrate(20);
   }
 
+  function onShieldAbsorb(g) {
+    shieldCharges--;
+    updateShieldBadge();
+    shake = Math.max(shake, 0.6);
+    flashColor = hexToRgb(POWERUP_TYPES.shield.color).join(",");
+    flash = Math.max(flash, 0.5);
+    spawnParticles(ball.x, screenYOf(g.y), POWERUP_TYPES.shield.color, 16, 200);
+    spawnShockwave(ball.x, screenYOf(g.y), POWERUP_TYPES.shield.color, 60, 0.4);
+    spawnFloatText(ball.x, screenYOf(g.y), "SHIELD  " + shieldCharges, POWERUP_TYPES.shield.color, "normal");
+    playShieldHit();
+    vibrate(30);
+  }
+
+  function collectPowerup(type, x, y) {
+    var c = POWERUP_TYPES[type];
+    spawnParticles(x, y, c.color, 18, 180);
+    spawnShockwave(x, y, c.color, 70, 0.45);
+    spawnFloatText(x, y, c.label, c.color, "normal");
+    punch = Math.min(1, punch + 0.35);
+    playPowerup();
+    vibrate(15);
+
+    if (type === "shield") {
+      shieldCharges = Math.min(5, shieldCharges + 3);
+      updateShieldBadge();
+    } else if (type === "slow") {
+      effectTimers.slow = 6;
+      effectTimers.rush = 0;
+    } else if (type === "rush") {
+      effectTimers.rush = 6;
+      effectTimers.slow = 0;
+    } else if (type === "magnet") {
+      effectTimers.magnet = 5;
+    }
+    updateEffectBadges();
+  }
+
   function die() {
     if (state !== "playing") return;
     state = "dead";
+    effectRowEl.innerHTML = "";
     hitstop = HIT_STOP_DUR;
     timeScale = 0.2;
     shake = 1.8;
@@ -700,6 +796,7 @@
   // draws a small shape glyph per color, on top of the fill, so the game
   // never relies on hue alone to tell segments apart (colorblind support)
   function drawShapeIcon(shape, cx, cy, r) {
+    r = Math.max(0.5, Math.abs(r));
     ctx.beginPath();
     if (shape === "circle") {
       ctx.arc(cx, cy, r * 0.5, 0, Math.PI * 2);
@@ -765,9 +862,17 @@
     }
 
     var prevY = ball.y;
-    var climb = CLIMB_BASE + Math.min(CLIMB_BONUS_MAX, score * 4);
+    var speedMul = 1;
+    if (effectTimers.rush > 0) speedMul = 1.5;
+    else if (effectTimers.slow > 0) speedMul = 0.6;
+    var climb = (CLIMB_BASE + Math.min(CLIMB_BONUS_MAX, score * 4)) * speedMul;
     ball.y -= climb * dt;
     camY = ball.y - H * BALL_SCREEN_Y_RATIO;
+
+    for (var ek in effectTimers) {
+      if (effectTimers[ek] > 0) effectTimers[ek] = Math.max(0, effectTimers[ek] - dt);
+    }
+    updateEffectBadges();
 
     if (zoneTransT < 1) zoneTransT = Math.min(1, zoneTransT + dt / ZONE_TRANSITION_DUR);
 
@@ -775,6 +880,19 @@
     var minX = laneLeft + BALL_R + 4, maxX = laneRight - BALL_R - 4;
     if (ball.targetX < minX) ball.targetX = minX;
     if (ball.targetX > maxX) ball.targetX = maxX;
+
+    if (effectTimers.magnet > 0) {
+      var mg = null;
+      for (var mi = 0; mi < gates.length; mi++) { if (!gates[mi].passed) { mg = gates[mi]; break; } }
+      if (mg) {
+        var mgeo = gateGeometry(mg);
+        var targetIdx = mg.blocks.indexOf(ball.color);
+        if (targetIdx === -1) targetIdx = 0;
+        var segCenterX = mgeo.left + mgeo.w * (targetIdx + 0.5);
+        ball.targetX += (segCenterX - ball.targetX) * Math.min(1, dt * 3);
+      }
+    }
+
     var prevX = ball.x;
     ball.x = ball.targetX; // direct 1:1 tracking, no lag behind the pointer
     ball.spin += dt * (2.2 + Math.abs(ball.x - prevX) * 0.18);
@@ -785,7 +903,7 @@
 
     for (var i = 0; i < gates.length; i++) {
       var g = gates[i];
-      if (g.pulse > 0) g.pulse -= dt * 3;
+      if (g.pulse > 0) g.pulse = Math.max(0, g.pulse - dt * 3);
 
       if (!g.passed && prevY > g.y && ball.y <= g.y) {
         var geo = gateGeometry(g);
@@ -797,6 +915,9 @@
           var col = blockColorAt(g, ball.x);
           if (col === ball.color) {
             onPassGate(g);
+          } else if (shieldCharges > 0) {
+            g.passed = true;
+            onShieldAbsorb(g);
           } else {
             lastMissColor = ball.color;
             die();
@@ -804,6 +925,16 @@
           }
         }
       }
+    }
+
+    for (var pi = powerups.length - 1; pi >= 0; pi--) {
+      var pu = powerups[pi];
+      pu.bobT += dt;
+      if (!pu.collected && Math.abs(ball.y - pu.y) < 30 && Math.abs(ball.x - pu.x) < 32) {
+        pu.collected = true;
+        collectPowerup(pu.type, pu.x, screenYOf(pu.y));
+      }
+      if (pu.collected || pu.y > camY + H + 200) powerups.splice(pi, 1);
     }
 
     while (gates.length && gates[0].y > camY + H + 200) gates.shift();
@@ -1050,6 +1181,79 @@
     ctx.restore();
   }
 
+  function drawPowerupGlyph(type, cx, cy, r) {
+    r = Math.max(0.5, Math.abs(r));
+    ctx.beginPath();
+    if (type === "shield") {
+      var pts = 6;
+      for (var i = 0; i <= pts; i++) {
+        var a = -Math.PI / 2 + (i / pts) * Math.PI * 2;
+        var px = cx + Math.cos(a) * r * 0.55, py = cy + Math.sin(a) * r * 0.55;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+    } else if (type === "slow") {
+      ctx.moveTo(cx - r * 0.4, cy - r * 0.35);
+      ctx.lineTo(cx + r * 0.4, cy - r * 0.35);
+      ctx.lineTo(cx, cy + r * 0.45);
+      ctx.closePath();
+    } else if (type === "rush") {
+      ctx.moveTo(cx + r * 0.12, cy - r * 0.55);
+      ctx.lineTo(cx - r * 0.4, cy + r * 0.08);
+      ctx.lineTo(cx - r * 0.05, cy + r * 0.08);
+      ctx.lineTo(cx - r * 0.12, cy + r * 0.55);
+      ctx.lineTo(cx + r * 0.4, cy - r * 0.12);
+      ctx.lineTo(cx + r * 0.08, cy - r * 0.12);
+      ctx.closePath();
+    } else if (type === "magnet") {
+      ctx.arc(cx, cy - r * 0.05, r * 0.42, 0.15 * Math.PI, 0.85 * Math.PI);
+      ctx.lineWidth = r * 0.32;
+      ctx.stroke();
+      return;
+    }
+    ctx.fill();
+  }
+
+  function drawPowerups(zi) {
+    ctx.save();
+    for (var i = 0; i < powerups.length; i++) {
+      var pu = powerups[i];
+      if (pu.collected) continue;
+      var sy = screenYOf(pu.y);
+      if (sy < -40 || sy > H + 40) continue;
+      var sx = pu.x;
+      var bob = Math.sin(pu.bobT * 2.2) * 5;
+      var c = POWERUP_TYPES[pu.type].color;
+
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      var glow = ctx.createRadialGradient(sx, sy + bob, 2, sx, sy + bob, 34);
+      glow.addColorStop(0, c);
+      glow.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = 0.55 + 0.25 * Math.sin(pu.bobT * 3);
+      ctx.beginPath();
+      ctx.arc(sx, sy + bob, 34, 0, Math.PI * 2);
+      ctx.fillStyle = glow;
+      ctx.fill();
+      ctx.restore();
+
+      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.arc(sx, sy + bob, 16, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(12,8,23,0.85)";
+      ctx.fill();
+      ctx.strokeStyle = c;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = c;
+      ctx.strokeStyle = c;
+      ctx.lineWidth = 2.5;
+      drawPowerupGlyph(pu.type, sx, sy + bob, 15);
+    }
+    ctx.restore();
+  }
+
   function drawFloatTexts() {
     ctx.textAlign = "center";
     for (var i = 0; i < floatTexts.length; i++) {
@@ -1084,6 +1288,7 @@
 
     if (state === "playing" || state === "dead") {
       for (var i = 0; i < gates.length; i++) drawGate(gates[i]);
+      if (state === "playing") drawPowerups(zi);
       drawParticles();
       drawFloatTexts();
       if (state === "playing") drawBall();

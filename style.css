@@ -189,6 +189,25 @@ html, body {
   100% { transform: scale(1); }
 }
 
+#effect-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.effect-chip {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--sc, #fff);
+  color: #0c0817;
+  white-space: nowrap;
+  -webkit-text-stroke: 0;
+  box-shadow: 0 0 10px var(--sc, #fff);
+}
+
 #score {
   font-size: 44px;
   font-weight: 800;

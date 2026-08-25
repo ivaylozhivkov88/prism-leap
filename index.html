@@ -17,6 +17,15 @@
   <div id="score">0</div>
 </div>
 
+<div id="top-controls">
+  <button id="pause-btn" class="icon-btn" aria-label="Pause" title="Pause">
+    <svg viewBox="0 0 24 24" width="18" height="18"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>
+  </button>
+  <button id="mute-btn" class="icon-btn" aria-label="Mute" title="Mute">
+    <svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 9v6h4l5 5V4L8 9H4z" fill="currentColor"/><path id="mute-waves" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a9 9 0 0 1 0 12" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/><line id="mute-slash" x1="15" y1="4" x2="21" y2="20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="display:none"/></svg>
+  </button>
+</div>
+
 <div id="start-screen" class="overlay">
   <div class="panel">
     <h1 class="title">PRISM<span>LEAP</span></h1>
@@ -25,8 +34,8 @@
     <div class="diff-grid">
       <button class="diff-btn diff-easy" data-diff="easy">EASY<span>2 colors, wide lanes</span></button>
       <button class="diff-btn diff-normal" data-diff="normal">NORMAL<span>4 colors</span></button>
-      <button class="diff-btn diff-hard" data-diff="hard">HARD<span>gates drift sideways</span></button>
-      <button class="diff-btn diff-impossible" data-diff="impossible">IMPOSSIBLE<span>drift keeps speeding up</span></button>
+      <button class="diff-btn diff-hard" data-diff="hard">HARD<span>gates drift &mdash; miss it, -1, no death</span></button>
+      <button class="diff-btn diff-impossible" data-diff="impossible">IMPOSSIBLE<span>drift speeds up &mdash; miss it, -1, no death</span></button>
     </div>
     <div class="hint">Move the mouse / your finger, or ← →</div>
     <div class="best-row">Best: <span id="best-start">0</span></div>
@@ -50,8 +59,21 @@
         <div id="best-score" class="score-value">0</div>
       </div>
     </div>
+    <div id="needed-row" class="needed-row hidden">
+      <span>You needed</span>
+      <span id="needed-swatch" class="needed-swatch"></span>
+      <span id="needed-label" class="needed-label"></span>
+    </div>
     <button id="retry-btn" class="btn">MENU</button>
     <div class="hint">Choose your difficulty again</div>
+  </div>
+</div>
+
+<div id="pause-screen" class="overlay hidden">
+  <div class="panel">
+    <h1 class="title small">PAUSED</h1>
+    <button id="resume-btn" class="btn">RESUME</button>
+    <div class="hint">Space or Esc also resumes</div>
   </div>
 </div>
 

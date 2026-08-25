@@ -30,10 +30,10 @@
 
   // ---------- palette ----------
   var COLORS = [
-    { fill: "#ff2d95", glow: "rgba(255,45,149,0.5)", ambient: "rgba(255,45,149,0.10)" },
-    { fill: "#2dd4ff", glow: "rgba(45,212,255,0.5)", ambient: "rgba(45,212,255,0.10)" },
-    { fill: "#ffd12d", glow: "rgba(255,209,45,0.5)", ambient: "rgba(255,209,45,0.10)" },
-    { fill: "#4dff8f", glow: "rgba(77,255,143,0.5)", ambient: "rgba(77,255,143,0.10)" }
+    { fill: "#ff2d95", glow: "rgba(255,45,149,0.5)", ambient: "rgba(255,45,149,0.10)", shape: "circle", name: "PINK" },
+    { fill: "#2dd4ff", glow: "rgba(45,212,255,0.5)", ambient: "rgba(45,212,255,0.10)", shape: "triangle", name: "CYAN" },
+    { fill: "#ffd12d", glow: "rgba(255,209,45,0.5)", ambient: "rgba(255,209,45,0.10)", shape: "square", name: "YELLOW" },
+    { fill: "#4dff8f", glow: "rgba(77,255,143,0.5)", ambient: "rgba(77,255,143,0.10)", shape: "diamond", name: "GREEN" }
   ];
   var SEGMENTS = COLORS.length; // overridden per-run by the chosen difficulty
   var activePalette = [0, 1, 2, 3]; // color indices in play this run
@@ -101,6 +101,14 @@
   var finalLevelEl = document.getElementById("final-level");
   var bestScoreEl = document.getElementById("best-score");
   var bestStartEl = document.getElementById("best-start");
+  var pauseBtn = document.getElementById("pause-btn");
+  var muteBtn = document.getElementById("mute-btn");
+  var muteSlash = document.getElementById("mute-slash");
+  var pauseScreen = document.getElementById("pause-screen");
+  var resumeBtn = document.getElementById("resume-btn");
+  var neededRow = document.getElementById("needed-row");
+  var neededSwatch = document.getElementById("needed-swatch");
+  var neededLabel = document.getElementById("needed-label");
 
   var BEST_KEY = "prismleap_best";
   var best = parseInt(localStorage.getItem(BEST_KEY) || "0", 10) || 0;
@@ -108,9 +116,20 @@
 
   // ---------- audio (procedural, no files) ----------
   var actx = null;
+  var masterGain = null;
+  var muted = false;
   function ensureAudio() {
     if (actx) { if (actx.state === "suspended") actx.resume(); return; }
-    try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { actx = null; }
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = actx.createGain();
+      masterGain.gain.value = muted ? 0 : 1;
+      masterGain.connect(actx.destination);
+    } catch (e) { actx = null; }
+  }
+  function setMuted(m) {
+    muted = m;
+    if (masterGain) masterGain.gain.value = muted ? 0 : 1;
   }
   function tone(freq, dur, type, peak, delay) {
     if (!actx) return;
@@ -122,7 +141,7 @@
     gain.gain.setValueAtTime(0.0001, t0);
     gain.gain.linearRampToValueAtTime(peak || 0.2, t0 + 0.012);
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    osc.connect(gain).connect(actx.destination);
+    osc.connect(gain).connect(masterGain);
     osc.start(t0);
     osc.stop(t0 + dur + 0.03);
   }
@@ -137,7 +156,7 @@
     gain.gain.setValueAtTime(0.0001, t0);
     gain.gain.linearRampToValueAtTime(peak || 0.2, t0 + Math.min(0.05, dur * 0.3));
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    osc.connect(gain).connect(actx.destination);
+    osc.connect(gain).connect(masterGain);
     osc.start(t0);
     osc.stop(t0 + dur + 0.03);
   }
@@ -211,7 +230,7 @@
     gain.gain.setValueAtTime(0.0001, time);
     gain.gain.linearRampToValueAtTime(peak, time + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
-    osc.connect(gain).connect(actx.destination);
+    osc.connect(gain).connect(masterGain);
     osc.start(time);
     osc.stop(time + dur + 0.05);
   }
@@ -224,7 +243,7 @@
     gain.gain.setValueAtTime(0.0001, time);
     gain.gain.linearRampToValueAtTime(0.016, time + 0.003);
     gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.03);
-    osc.connect(gain).connect(actx.destination);
+    osc.connect(gain).connect(masterGain);
     osc.start(time);
     osc.stop(time + 0.04);
   }
@@ -279,6 +298,8 @@
   var ball, gates = [], particles = [], floatTexts = [], camY = 0, score = 0, lastTime, spawnCursorY, spawnedCount;
   var moveDir = 0;
   var shake = 0, flash = 0, punch = 0, hitstop = 0, elapsed = 0;
+  var paused = false;
+  var lastMissColor = 0;
   var flashColor = "255,45,60";
   var timeScale = 1;
   var shockwaves = [];
@@ -565,6 +586,11 @@
       finalScoreEl.textContent = score;
       finalLevelEl.textContent = currentLevel;
       bestScoreEl.textContent = best;
+      var missC = COLORS[lastMissColor];
+      neededSwatch.style.background = missC.fill;
+      neededSwatch.style.color = missC.fill;
+      neededLabel.textContent = missC.name;
+      neededRow.classList.remove("hidden");
       overScreen.classList.remove("hidden");
       scoreEl.classList.remove("visible");
       levelBadgeEl.classList.remove("visible");
@@ -577,6 +603,31 @@
     });
   }
   retryBtn.addEventListener("click", returnToMenu);
+
+  function openPause() {
+    if (state !== "playing" || paused) return;
+    paused = true;
+    stopMusic();
+    pauseScreen.classList.remove("hidden");
+  }
+  function closePause() {
+    if (!paused) return;
+    paused = false;
+    pauseScreen.classList.add("hidden");
+    lastTime = null;
+    if (state === "playing") startMusic();
+  }
+  pauseBtn.addEventListener("click", function () { ensureAudio(); openPause(); });
+  resumeBtn.addEventListener("click", closePause);
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) openPause();
+  });
+
+  muteBtn.addEventListener("click", function () {
+    ensureAudio();
+    setMuted(!muted);
+    muteSlash.style.display = muted ? "block" : "none";
+  });
 
   function pointerToX(clientX) {
     var rect = canvas.getBoundingClientRect();
@@ -597,9 +648,19 @@
   });
 
   window.addEventListener("keydown", function (e) {
+    if (e.code === "Escape") {
+      if (paused) closePause(); else openPause();
+      return;
+    }
+    if (e.code === "KeyP") { if (paused) closePause(); else openPause(); return; }
     if (e.code === "ArrowLeft" || e.code === "KeyA") { moveDir = -1; }
     else if (e.code === "ArrowRight" || e.code === "KeyD") { moveDir = 1; }
-    else if (e.code === "Space") { e.preventDefault(); ensureAudio(); onPrimaryAction(); }
+    else if (e.code === "Space") {
+      e.preventDefault();
+      ensureAudio();
+      if (paused) { closePause(); return; }
+      onPrimaryAction();
+    }
   });
   window.addEventListener("keyup", function (e) {
     if ((e.code === "ArrowLeft" || e.code === "KeyA") && moveDir === -1) moveDir = 0;
@@ -619,6 +680,31 @@
     ctx.arcTo(x, y + h, x, y, r);
     ctx.arcTo(x, y, x + w, y, r);
     ctx.closePath();
+  }
+
+  // draws a small shape glyph per color, on top of the fill, so the game
+  // never relies on hue alone to tell segments apart (colorblind support)
+  function drawShapeIcon(shape, cx, cy, r) {
+    ctx.beginPath();
+    if (shape === "circle") {
+      ctx.arc(cx, cy, r * 0.5, 0, Math.PI * 2);
+    } else if (shape === "triangle") {
+      ctx.moveTo(cx, cy - r * 0.6);
+      ctx.lineTo(cx + r * 0.55, cy + r * 0.4);
+      ctx.lineTo(cx - r * 0.55, cy + r * 0.4);
+      ctx.closePath();
+    } else if (shape === "square") {
+      var s = r * 0.45;
+      ctx.rect(cx - s, cy - s, s * 2, s * 2);
+    } else if (shape === "diamond") {
+      ctx.moveTo(cx, cy - r * 0.6);
+      ctx.lineTo(cx + r * 0.5, cy);
+      ctx.lineTo(cx, cy + r * 0.6);
+      ctx.lineTo(cx - r * 0.5, cy);
+      ctx.closePath();
+    }
+    ctx.fill();
+    ctx.stroke();
   }
 
   // ---------- update ----------
@@ -649,6 +735,7 @@
   }
 
   function update(dt) {
+    if (paused) return;
     elapsed += dt;
 
     if (hitstop > 0) {
@@ -696,6 +783,7 @@
           if (col === ball.color) {
             onPassGate(g);
           } else {
+            lastMissColor = ball.color;
             die();
             break;
           }
@@ -818,6 +906,12 @@
       ctx.globalAlpha = gate.passed ? 0.22 : 0.95;
       ctx.fillRect(bx, sy - h / 2, w + 0.5, h);
     }
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.lineWidth = 1;
+    for (var si = 0; si < SEGMENTS; si++) {
+      drawShapeIcon(COLORS[gate.blocks[si]].shape, gLeft + si * w + w / 2, sy, Math.min(h, w) * 0.7);
+    }
     ctx.strokeStyle = "rgba(0,0,0,0.28)";
     ctx.lineWidth = 1.5;
     for (var d = 1; d < SEGMENTS; d++) {
@@ -900,6 +994,11 @@
     ctx.arc(hx, hy, R * 0.24, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(255,255,255,0.8)";
     ctx.fill();
+
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.strokeStyle = "rgba(0,0,0,0.3)";
+    ctx.lineWidth = 1;
+    drawShapeIcon(c.shape, sx, sy, R * 1.15);
   }
 
   function drawParticles() {

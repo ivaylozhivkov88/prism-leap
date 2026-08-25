@@ -97,6 +97,7 @@
   var overScreen = document.getElementById("gameover-screen");
   var diffButtons = document.querySelectorAll(".diff-btn");
   var retryBtn = document.getElementById("retry-btn");
+  var menuBtn = document.getElementById("menu-btn");
   var finalScoreEl = document.getElementById("final-score");
   var finalLevelEl = document.getElementById("final-level");
   var bestScoreEl = document.getElementById("best-score");
@@ -602,7 +603,8 @@
       beginPlaying(e.currentTarget.getAttribute("data-diff"));
     });
   }
-  retryBtn.addEventListener("click", returnToMenu);
+  retryBtn.addEventListener("click", function () { beginPlaying(); });
+  menuBtn.addEventListener("click", returnToMenu);
 
   function openPause() {
     if (state !== "playing" || paused) return;

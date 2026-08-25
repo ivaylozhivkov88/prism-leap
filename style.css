@@ -320,6 +320,21 @@ html, body {
   box-shadow: 0 4px 12px rgba(255, 45, 149, 0.3);
 }
 
+.btn-row {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.btn-secondary:active {
+  box-shadow: none;
+}
+
 .diff-label {
   font-size: 11px;
   letter-spacing: 2px;
